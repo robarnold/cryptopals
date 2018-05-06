@@ -1,3 +1,19 @@
+fn parse_byte_string(s: &str) -> Vec<u8> {
+  let mut v = Vec::with_capacity(s.len() / 2);
+  let mut i = 0;
+  while i < s.len() {
+    v.push(u8::from_str_radix(&s[i..i+2], 16).unwrap());
+    i += 2;
+  }
+  v
+}
+
+macro_rules! bytes {
+  ($description:expr) => (
+    parse_byte_string($description)
+  );
+}
+
 fn b64_encode(bytes: &[u8]) -> String {
   let table = [
     'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
@@ -63,24 +79,8 @@ fn base64_three_letter2() {
 
 #[test]
 fn set_one_challenge_one() {
-  let bytes = [0x49u8, 0x27u8, 0x6du8, 0x20u8, 0x6bu8, 0x69u8, 0x6cu8, 0x6cu8, 0x69u8, 0x6eu8, 0x67u8, 0x20u8, 0x79u8, 0x6fu8, 0x75u8, 0x72u8, 0x20u8, 0x62u8, 0x72u8, 0x61u8, 0x69u8, 0x6eu8, 0x20u8, 0x6cu8, 0x69u8, 0x6bu8, 0x65u8, 0x20u8, 0x61u8, 0x20u8, 0x70u8, 0x6fu8, 0x69u8, 0x73u8, 0x6fu8, 0x6eu8, 0x6fu8, 0x75u8, 0x73u8, 0x20u8, 0x6du8, 0x75u8, 0x73u8, 0x68u8, 0x72u8, 0x6fu8, 0x6fu8, 0x6du8];
+  let bytes = bytes!("49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d");
   assert_eq!(String::from("SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t"), b64_encode(&bytes));
-}
-
-fn parse_byte_string(s: &str) -> Vec<u8> {
-  let mut v = Vec::with_capacity(s.len() / 2);
-  let mut i = 0;
-  while i < s.len() {
-    v.push(u8::from_str_radix(&s[i..i+2], 16).unwrap());
-    i += 2;
-  }
-  v
-}
-
-macro_rules! bytes {
-  ($description:expr) => (
-    parse_byte_string($description)
-  );
 }
 
 fn xor_buffer_fixed(data: &[u8], key: &[u8]) -> Vec<u8> {
