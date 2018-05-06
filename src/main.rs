@@ -66,3 +66,38 @@ fn set_one_challenge_one() {
   let bytes = [0x49u8, 0x27u8, 0x6du8, 0x20u8, 0x6bu8, 0x69u8, 0x6cu8, 0x6cu8, 0x69u8, 0x6eu8, 0x67u8, 0x20u8, 0x79u8, 0x6fu8, 0x75u8, 0x72u8, 0x20u8, 0x62u8, 0x72u8, 0x61u8, 0x69u8, 0x6eu8, 0x20u8, 0x6cu8, 0x69u8, 0x6bu8, 0x65u8, 0x20u8, 0x61u8, 0x20u8, 0x70u8, 0x6fu8, 0x69u8, 0x73u8, 0x6fu8, 0x6eu8, 0x6fu8, 0x75u8, 0x73u8, 0x20u8, 0x6du8, 0x75u8, 0x73u8, 0x68u8, 0x72u8, 0x6fu8, 0x6fu8, 0x6du8];
   assert_eq!(String::from("SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t"), b64_encode(&bytes));
 }
+
+fn parse_byte_string(s: &str) -> Vec<u8> {
+  let chars: Vec<char> = s.chars().collect();
+  let mut v = Vec::with_capacity(s.len() / 2);
+  for i in 0..chars.len()/2 {
+    let c1 = chars[2 * i + 0].to_digit(16).unwrap();
+    let c2 = chars[2 * i + 1].to_digit(16).unwrap();
+    let b = (c1 << 4 | c2) as u8;
+    v.push(b);
+  }
+  v
+}
+
+macro_rules! bytes {
+  ($description:expr) => (
+    parse_byte_string($description)
+  );
+}
+
+fn xor_buffer_fixed(data: &[u8], key: &[u8]) -> Vec<u8> {
+  use std::ops::BitXor;
+  let mut v = Vec::with_capacity(data.len());
+  for i in 0..data.len() {
+    v.push(data[i].bitxor(key[i]));
+  }
+  v
+}
+
+#[test]
+fn set_one_challenge_two() {
+  let result = bytes!("746865206b696420646f6e277420706c6179");
+  let data = &bytes!("1c0111001f010100061a024b53535009181c");
+  let key = &bytes!("686974207468652062756c6c277320657965");
+  assert_eq!(result, xor_buffer_fixed(data, key));
+}
