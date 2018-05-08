@@ -99,3 +99,48 @@ fn set_one_challenge_two() {
   let key = &bytes!("686974207468652062756c6c277320657965");
   assert_eq!(result, xor_buffer_fixed(data, key));
 }
+
+fn xor_buffer_single_char(data: &[u8], key: u8) -> Vec<u8> {
+  use std::ops::BitXor;
+  let mut v = Vec::with_capacity(data.len());
+  for i in 0..data.len() {
+    v.push(data[i].bitxor(key));
+  }
+  v
+}
+
+fn likely_plain_text_score(data: &[u8]) -> u32 {
+  let mut score = 0;
+  for i in data.iter() {
+    if i.is_ascii_alphabetic() {
+      score += 1;
+    }
+  }
+  score
+}
+
+fn attempt_xor_decode(data: &[u8]) -> u8 {
+  let mut best_key = 0;
+  let mut best_score = 0;
+  for key in 0..u8::max_value() {
+    let decoded_data = xor_buffer_single_char(data, key);
+    let score = likely_plain_text_score(&decoded_data);
+    if score > best_score {
+      best_key = key;
+      best_score = score;
+    }
+  }
+  best_key
+}
+
+#[test]
+fn set_one_challenge_three() {
+  let encoded_data = bytes!("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
+  let key = attempt_xor_decode(&encoded_data);
+  let decoded_data = xor_buffer_single_char(&encoded_data, key);
+  let decoded_text_result = std::str::from_utf8(&decoded_data);
+  println!("{:?}", decoded_text_result);
+  assert_eq!(true, decoded_text_result.is_ok());
+  let decoded_text = decoded_text_result.unwrap();
+  assert_eq!(true, decoded_text.len() > 0);
+}
