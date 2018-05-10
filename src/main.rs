@@ -110,16 +110,28 @@ fn xor_buffer_single_char(data: &[u8], key: u8) -> Vec<u8> {
 }
 
 fn likely_plain_text_score(data: &[u8]) -> u32 {
-  let mut score = 0;
+  let mut alphabetic_chars = 0u32;
+  let mut punctuation = 0u32;
+  let mut invalid_chars = 0u32;
   for i in data.iter() {
-    if i.is_ascii_alphabetic() {
-      score += 1;
+    if i.is_ascii_alphanumeric() || i.is_ascii_whitespace() {
+      alphabetic_chars += 1;
+    } else if i.is_ascii_punctuation() {
+      punctuation += 1;
+    } else {
+      invalid_chars += 1;
     }
   }
-  score
+  (3 * alphabetic_chars + punctuation).saturating_sub(invalid_chars)
 }
 
-fn attempt_xor_decode(data: &[u8]) -> u8 {
+#[derive(Clone)]
+struct XorDecodeAttempt {
+  key: u8,
+  score: u32,
+}
+
+fn attempt_xor_decode(data: &[u8]) -> XorDecodeAttempt {
   let mut best_key = 0;
   let mut best_score = 0;
   for key in 0..u8::max_value() {
@@ -130,17 +142,54 @@ fn attempt_xor_decode(data: &[u8]) -> u8 {
       best_score = score;
     }
   }
-  best_key
+  XorDecodeAttempt {
+    key: best_key,
+    score: best_score,
+  }
 }
 
 #[test]
 fn set_one_challenge_three() {
   let encoded_data = bytes!("1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736");
-  let key = attempt_xor_decode(&encoded_data);
-  let decoded_data = xor_buffer_single_char(&encoded_data, key);
+  let attempt = attempt_xor_decode(&encoded_data);
+  let decoded_data = xor_buffer_single_char(&encoded_data, attempt.key);
   let decoded_text_result = std::str::from_utf8(&decoded_data);
   println!("{:?}", decoded_text_result);
   assert_eq!(true, decoded_text_result.is_ok());
   let decoded_text = decoded_text_result.unwrap();
+  println!("{}", decoded_text);
   assert_eq!(true, decoded_text.len() > 0);
+}
+
+#[test]
+fn set_one_challenge_four() {
+  use std::io::BufRead;
+  let contents = include_bytes!("s1c4.txt");
+  let mut best_attempt = None;
+  let mut decoded_string = String::from("");
+  for line in contents.lines() {
+    let encoded_data = &bytes!(&line.unwrap());
+    let current_attempt = attempt_xor_decode(encoded_data);
+    let decode_result = std::string::String::from_utf8(xor_buffer_single_char(&encoded_data, current_attempt.key));
+    if decode_result.is_err() {
+      continue;
+    }
+    match best_attempt.clone() {
+      None => {
+        decoded_string = decode_result.unwrap();
+        println!("{}: {}", current_attempt.score, decoded_string);
+        best_attempt = Some(current_attempt);
+      },
+      Some(attempt) => {
+        if attempt.score < current_attempt.score {
+          decoded_string = decode_result.unwrap();
+          println!("{}: {}", current_attempt.score, decoded_string);
+          best_attempt = Some(current_attempt);
+        }
+      }
+    }
+  }
+  assert_eq!(true, best_attempt.is_some());
+  assert_eq!(true, decoded_string.len() > 0);
+  println!("{}", decoded_string);
 }
