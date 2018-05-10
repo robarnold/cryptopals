@@ -2,7 +2,7 @@ fn parse_byte_string(s: &str) -> Vec<u8> {
   let mut v = Vec::with_capacity(s.len() / 2);
   let mut i = 0;
   while i < s.len() {
-    v.push(u8::from_str_radix(&s[i..i+2], 16).unwrap());
+    v.push(u8::from_str_radix(&s[i..i + 2], 16).unwrap());
     i += 2;
   }
   v
@@ -16,9 +16,10 @@ macro_rules! bytes {
 
 fn b64_encode(bytes: &[u8]) -> String {
   let table = [
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-    'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
+    'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l',
+    'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3', '4',
+    '5', '6', '7', '8', '9', '+', '/',
   ];
   let mut s = String::from("");
   for chunk in bytes.chunks(3) {
@@ -31,7 +32,7 @@ fn b64_encode(bytes: &[u8]) -> String {
         s.push(table[i2]);
         s.push('=');
         s.push('=');
-      },
+      }
       2 => {
         let b1 = chunk[0];
         let b2 = chunk[1];
@@ -42,7 +43,7 @@ fn b64_encode(bytes: &[u8]) -> String {
         s.push(table[i2]);
         s.push(table[i3]);
         s.push('=');
-      },
+      }
       3 => {
         let b1 = chunk[0];
         let b2 = chunk[1];
@@ -55,7 +56,7 @@ fn b64_encode(bytes: &[u8]) -> String {
         s.push(table[i2]);
         s.push(table[i3]);
         s.push(table[i4]);
-      },
+      }
       _ => panic!("Chunk size too small"),
     }
   }
@@ -80,7 +81,10 @@ fn base64_three_letter2() {
 #[test]
 fn set_one_challenge_one() {
   let bytes = bytes!("49276d206b696c6c696e6720796f757220627261696e206c696b65206120706f69736f6e6f7573206d757368726f6f6d");
-  assert_eq!(String::from("SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t"), b64_encode(&bytes));
+  assert_eq!(
+    String::from("SSdtIGtpbGxpbmcgeW91ciBicmFpbiBsaWtlIGEgcG9pc29ub3VzIG11c2hyb29t"),
+    b64_encode(&bytes)
+  );
 }
 
 fn xor_buffer_fixed(data: &[u8], key: &[u8]) -> Vec<u8> {
@@ -170,7 +174,8 @@ fn set_one_challenge_four() {
   for line in contents.lines() {
     let encoded_data = &bytes!(&line.unwrap());
     let current_attempt = attempt_xor_decode(encoded_data);
-    let decode_result = std::string::String::from_utf8(xor_buffer_single_char(&encoded_data, current_attempt.key));
+    let decode_result =
+      std::string::String::from_utf8(xor_buffer_single_char(&encoded_data, current_attempt.key));
     if decode_result.is_err() {
       continue;
     }
@@ -179,7 +184,7 @@ fn set_one_challenge_four() {
         decoded_string = decode_result.unwrap();
         println!("{}: {}", current_attempt.score, decoded_string);
         best_attempt = Some(current_attempt);
-      },
+      }
       Some(attempt) => {
         if attempt.score < current_attempt.score {
           decoded_string = decode_result.unwrap();
