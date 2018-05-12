@@ -61,5 +61,3 @@ fn base64_two_letter2() {
 fn base64_three_letter2() {
   assert_eq!(String::from("TWFu"), encode(&[0x4d, 0x61, 0x6e]));
 }
-
-

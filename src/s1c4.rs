@@ -36,5 +36,3 @@ fn challenge() {
   assert_eq!(true, decoded_string.len() > 0);
   println!("{}", decoded_string);
 }
-
-

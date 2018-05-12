@@ -8,5 +8,3 @@ fn challenge() {
   let key = &util::parse_byte_string("686974207468652062756c6c277320657965");
   assert_eq!(result, xor::buffer_full_key(data, key));
 }
-
-

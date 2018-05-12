@@ -9,5 +9,3 @@ fn challenge() {
     b64::encode(&bytes)
   );
 }
-
-
