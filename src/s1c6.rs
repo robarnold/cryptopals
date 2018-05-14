@@ -1,3 +1,4 @@
+extern crate time;
 use std::str;
 use std::string::String;
 
@@ -17,9 +18,13 @@ fn read_encoded_data() -> Vec<u8> {
 #[test]
 fn challenge() {
   let encoded_bytes = read_encoded_data();
+  let start_time = time::precise_time_s();
   let attempt = xor::attempt_rotating_key_decode(&encoded_bytes);
+  let duration = time::precise_time_s() - start_time;
+  println!("Duration: {}s", duration);
   assert_eq!(true, attempt.is_some());
-  let decoded_data = attempt.unwrap().decoded_data;
+  let xor::XorRotatingKeyDecodeAttempt { key, decoded_data, .. } = attempt.unwrap();
+  println!("Key: {:?}", key);
   let maybe_string = String::from_utf8(decoded_data);
   assert_eq!(true, maybe_string.is_ok());
   let string = maybe_string.unwrap();
