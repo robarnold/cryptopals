@@ -1,3 +1,4 @@
+extern crate threadpool;
 use std::ops::BitXor;
 
 use analysis;
@@ -92,11 +93,26 @@ fn attempt_rotating_key_decode_at_size(data: &[u8], size: usize) -> XorRotatingK
 }
 
 pub fn attempt_rotating_key_decode(data: &[u8]) -> Option<XorRotatingKeyDecodeAttempt> {
+  use std::sync::Arc;
+  use std::sync::mpsc::channel;
   let sizes = analysis::sort_keysizes_by_probability(data, 2, 40);
   println!("Key sizes: {:?}", sizes);
-  let mut best_attempt = None;
+  let pool = threadpool::ThreadPool::default();
+  let mut best_attempt: Option<XorRotatingKeyDecodeAttempt> = None;
+  let shared_data = Arc::new(data.to_vec());
+  let (tx, rx) = channel();
   for size in sizes {
-    let attempt = attempt_rotating_key_decode_at_size(data, size);
+    let job_data = Arc::clone(&shared_data);
+    let job_tx = tx.clone();
+    pool.execute(move || {
+      let attempt = attempt_rotating_key_decode_at_size(&job_data, size);
+      job_tx.send(attempt).expect("The channel is active");
+    });
+  }
+  // Need to drop it here so that rx.iter will stop yielding items when the
+  // threads are done.
+  drop(tx);
+  for attempt in rx.iter() {
     match best_attempt.clone() {
       None => {
         best_attempt = Some(attempt);
