@@ -149,39 +149,72 @@ fn test_shift_rows() {
   );
 }
 
-const COLUMN_MATRIX: [u8; 16] = [2, 1, 1, 3, 3, 2, 1, 1, 1, 3, 2, 1, 1, 1, 3, 2];
+const COLUMN_MATRIX: [u8; 16] = [2, 3, 1, 1, 1, 2, 3, 1, 1, 1, 2, 3, 3, 1, 1, 2];
 
 fn gmul(mut a: u8, mut b: u8) -> u8 {
   let mut p = 0;
   for _ in 0..8 {
-    if b & 0x1 != 0 {
-      p ^= a;
+    if (b & 0x1) != 0 {
+      p = p.bitxor(a);
     }
     let has_high_bit = (a & 0x80) == 0x80;
     a <<= 1;
     if has_high_bit {
-      a ^= 0x1b;
+      a = a.bitxor(0x1b);
     }
     b >>= 1;
   }
   p
 }
 
+fn mix_column(state_column: &[u8]) -> Vec<u8> {
+  COLUMN_MATRIX
+    .chunks(4)
+    .map(|mc| {
+      mc.iter()
+        .enumerate()
+        .map(|(i, &coefficient)| gmul(coefficient, state_column[i]))
+        .fold(None, |accum, current| match accum {
+          None => Some(current),
+          Some(x) => Some(x.bitxor(current)),
+        })
+        .unwrap()
+    })
+    .collect()
+}
+
+#[test]
+fn test_mix_column() {
+  use util::parse_byte_string;
+  assert_eq!(
+    parse_byte_string("8e4da1bc"),
+    mix_column(&parse_byte_string("db135345")),
+  );
+  assert_eq!(
+    parse_byte_string("9fdc589d"),
+    mix_column(&parse_byte_string("f20a225c")),
+  );
+  assert_eq!(
+    parse_byte_string("01010101"),
+    mix_column(&parse_byte_string("01010101")),
+  );
+  assert_eq!(
+    parse_byte_string("c6c6c6c6"),
+    mix_column(&parse_byte_string("c6c6c6c6")),
+  );
+  assert_eq!(
+    parse_byte_string("d5d5d7d6"),
+    mix_column(&parse_byte_string("d4d4d4d5")),
+  );
+  assert_eq!(
+    parse_byte_string("4d7ebdf8"),
+    mix_column(&parse_byte_string("2d26314c")),
+  );
+}
+
 fn mix_columns(state: &mut [u8]) {
   for column in state.chunks_mut(4) {
-    let new_column: Vec<u8> = COLUMN_MATRIX
-      .chunks(4)
-      .map(|mc| {
-        mc.iter()
-          .enumerate()
-          .map(|(i, &coefficient)| gmul(coefficient, column[i]))
-          .fold(None, |accum, current| match accum {
-            None => Some(current),
-            Some(x) => Some(x.bitxor(current)),
-          })
-          .unwrap()
-      })
-      .collect();
+    let new_column = mix_column(column);
     column.copy_from_slice(&new_column);
   }
 }
