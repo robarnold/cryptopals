@@ -1,3 +1,4 @@
+mod aes;
 mod analysis;
 mod b64;
 mod util;
