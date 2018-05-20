@@ -23,7 +23,9 @@ fn challenge() {
   let duration = time::precise_time_s() - start_time;
   println!("Duration: {}s", duration);
   assert_eq!(true, attempt.is_some());
-  let xor::XorRotatingKeyDecodeAttempt { key, decoded_data, .. } = attempt.unwrap();
+  let xor::XorRotatingKeyDecodeAttempt {
+    key, decoded_data, ..
+  } = attempt.unwrap();
   println!("Key: {:?}", key);
   let maybe_string = String::from_utf8(decoded_data);
   assert_eq!(true, maybe_string.is_ok());

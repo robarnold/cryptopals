@@ -44,6 +44,10 @@ pub fn sort_keysizes_by_probability(data: &[u8], min_size: usize, max_size: usiz
     let inverse_p = hamming_distance(s1, s2) as f32 / size as f32;
     sizes.push(Size { inverse_p, size });
   }
-  sizes.sort_by(|a, b| a.inverse_p.partial_cmp(&b.inverse_p).unwrap_or(Ordering::Less));
+  sizes.sort_by(|a, b| {
+    a.inverse_p
+      .partial_cmp(&b.inverse_p)
+      .unwrap_or(Ordering::Less)
+  });
   sizes.iter().map(|size| size.size).collect()
 }
