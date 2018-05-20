@@ -11,6 +11,12 @@ pub fn buffer_full_key(data: &[u8], key: &[u8]) -> Vec<u8> {
   v
 }
 
+fn buffer_full_key_mut(data: &mut [u8], key: &[u8]) {
+  for i in 0..data.len() {
+    data[i] = data[i].bitxor(key[i]);
+  }
+}
+
 pub fn buffer_single_char(data: &[u8], key: u8) -> Vec<u8> {
   let mut v = Vec::with_capacity(data.len());
   for i in 0..data.len() {
@@ -19,12 +25,24 @@ pub fn buffer_single_char(data: &[u8], key: u8) -> Vec<u8> {
   v
 }
 
+fn buffer_single_char_mut(data: &mut [u8], key: u8) {
+  for i in 0..data.len() {
+    data[i] = data[i].bitxor(key);
+  }
+}
+
 pub fn buffer_repeating(data: &[u8], key: &[u8]) -> Vec<u8> {
   let mut v = Vec::with_capacity(data.len());
   for i in 0..data.len() {
     v.push(data[i].bitxor(key[i % key.len()]));
   }
   v
+}
+
+fn buffer_repeating_mut(data: &mut [u8], key: &[u8]) {
+  for i in 0..data.len() {
+    data[i] = data[i].bitxor(key[i % key.len()]);
+  }
 }
 
 pub enum Key<'a> {
@@ -41,6 +59,14 @@ pub fn buffer(data: &[u8], key: Key) -> Vec<u8> {
   }
 }
 
+pub fn buffer_mut(data: &mut [u8], key: Key) {
+  match key {
+    Key::FullBuffer(key) => buffer_full_key_mut(data, key),
+    Key::SingleByte(key) => buffer_single_char_mut(data, key),
+    Key::RotatingKey(key) => buffer_repeating_mut(data, key),
+  }
+}
+
 #[derive(Clone)]
 pub struct XorSingleByteDecodeAttempt {
   pub key: u8,
@@ -51,7 +77,7 @@ pub fn attempt_single_byte_decode(data: &[u8]) -> XorSingleByteDecodeAttempt {
   let mut best_key = 0;
   let mut best_score = 0;
   for key in 0..u8::max_value() {
-    let decoded_data = buffer_single_char(data, key);
+    let decoded_data = buffer(data, Key::SingleByte(key));
     let score = analysis::likely_plain_text_score(&decoded_data);
     if score > best_score {
       best_key = key;
@@ -84,7 +110,7 @@ fn attempt_rotating_key_decode_at_size(data: &[u8], size: usize) -> XorRotatingK
     let attempt = attempt_single_byte_decode(&transposed_data);
     rotating_key.push(attempt.key);
   }
-  let decoded_data = buffer_repeating(data, &rotating_key);
+  let decoded_data = buffer(data, Key::RotatingKey(&rotating_key));
   XorRotatingKeyDecodeAttempt {
     key: rotating_key,
     score: analysis::likely_plain_text_score(&decoded_data),
