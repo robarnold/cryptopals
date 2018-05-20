@@ -82,10 +82,11 @@ fn expand_key(key: &[u8]) -> Vec<u8> {
     32 => (14, true, 3),
     len => panic!("Unsupported key length {}", len),
   };
-  let mut expanded_key = Vec::with_capacity(16 * (rounds + 1));
+  let expanded_key_size = 16 * (rounds + 1);
+  let mut expanded_key = Vec::with_capacity(expanded_key_size);
   expanded_key.extend_from_slice(&key);
   let mut rcon_iteration = 1usize;
-  while expanded_key.len() < expanded_key.capacity() {
+  while expanded_key.len() < expanded_key_size {
     let t = generate_four_bytes(key_length, &expanded_key, &mut rcon_iteration, Mode::Full);
     expanded_key.extend(t.iter());
     for _i in 0..3 {
@@ -101,49 +102,135 @@ fn expand_key(key: &[u8]) -> Vec<u8> {
       expanded_key.extend(t.iter());
     }
   }
+  // Truncate any extra bytes
+  expanded_key.resize(expanded_key_size, 0);
+  if expanded_key.len() != expanded_key_size {
+    panic!("Expanded key is too long: {}", expanded_key.len());
+  }
   expanded_key
+}
+
+#[test]
+fn expand_key_16() {
+  assert_eq!(176, expand_key(&vec![0; 16]).len());
+}
+
+#[test]
+fn expand_key_24() {
+  assert_eq!(208, expand_key(&vec![0; 24]).len());
+}
+
+#[test]
+fn expand_key_32() {
+  assert_eq!(240, expand_key(&vec![0; 32]).len());
 }
 
 fn add_round_key(state: &mut [u8], key: &[u8]) {
   xor::buffer_mut(state, xor::Key::FullBuffer(key));
 }
 
-fn ecb(data: &[u8], key: &[u8]) -> Vec<u8> {
+// Shifted by 0, 1, 2, 3 columns
+const ROW_SHIFTS: [usize; 16] = [0, 5, 10, 15, 4, 9, 14, 3, 8, 13, 2, 7, 12, 1, 6, 11];
+
+fn shift_rows(state: &mut [u8]) {
+  let copy = state.to_vec();
+  for (index, e) in state.iter_mut().enumerate() {
+    *e = copy[ROW_SHIFTS[index]];
+  }
+}
+
+#[test]
+fn test_shift_rows() {
+  let mut rows = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+  shift_rows(&mut rows);
+  assert_eq!(
+    rows,
+    [1, 6, 11, 16, 5, 10, 15, 4, 9, 14, 3, 8, 13, 2, 7, 12]
+  );
+}
+
+const COLUMN_MATRIX: [u8; 16] = [2, 1, 1, 3, 3, 2, 1, 1, 1, 3, 2, 1, 1, 1, 3, 2];
+
+fn gmul(mut a: u8, mut b: u8) -> u8 {
+  let mut p = 0;
+  for _ in 0..8 {
+    if b & 0x1 != 0 {
+      p ^= a;
+    }
+    let has_high_bit = (a & 0x80) == 0x80;
+    a <<= 1;
+    if has_high_bit {
+      a ^= 0x1b;
+    }
+    b >>= 1;
+  }
+  p
+}
+
+fn mix_columns(state: &mut [u8]) {
+  for column in state.chunks_mut(4) {
+    let new_column: Vec<u8> = COLUMN_MATRIX
+      .chunks(4)
+      .map(|mc| {
+        mc.iter()
+          .enumerate()
+          .map(|(i, &coefficient)| gmul(coefficient, column[i]))
+          .fold(None, |accum, current| match accum {
+            None => Some(current),
+            Some(x) => Some(x.bitxor(current)),
+          })
+          .unwrap()
+      })
+      .collect();
+    column.copy_from_slice(&new_column);
+  }
+}
+
+pub fn ecb(data: &[u8], key: &[u8]) -> Vec<u8> {
   let mut v = Vec::with_capacity(data.len());
   let expanded_key = expand_key(key);
   let last_round = expanded_key.chunks(key.len()).count() - 1;
   for chunk in data.chunks(16) {
     let mut state = chunk.to_vec();
-    for (round, round_key) in expanded_key.chunks(key.len()).enumerate() {
+    // Pad out to 16 bytes
+    state.resize(16, 0);
+    for (round, round_key) in expanded_key.chunks(state.len()).enumerate() {
+      if round_key.len() != 16 {
+        panic!("Invalid key length of {}", round_key.len());
+      }
       match round {
         0 => {
           add_round_key(&mut state, round_key);
         }
         n if n == last_round => {
           sbox(&mut state);
+          shift_rows(&mut state);
+          mix_columns(&mut state);
           add_round_key(&mut state, round_key);
         }
         _ => {
           sbox(&mut state);
+          shift_rows(&mut state);
           add_round_key(&mut state, round_key);
         }
       }
     }
+    v.extend(state);
   }
   v
 }
 
 #[test]
-fn once_16() {
+fn ecb_once_16() {
   ecb(&vec![0; 16], &vec![0; 16]);
 }
 
-/*#[test]
-fn once_24() {
+#[test]
+fn ecb_once_24() {
   ecb(&vec![0; 24], &vec![0; 24]);
 }
 
 #[test]
-fn once_32() {
+fn ecb_once_32() {
   ecb(&vec![0; 32], &vec![0; 32]);
-}*/
+}

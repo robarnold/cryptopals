@@ -1,3 +1,5 @@
+use b64;
+
 pub fn parse_byte_string(s: &str) -> Vec<u8> {
   let mut v = Vec::with_capacity(s.len() / 2);
   let mut i = 0;
@@ -6,4 +8,13 @@ pub fn parse_byte_string(s: &str) -> Vec<u8> {
     i += 2;
   }
   v
+}
+
+pub fn read_encoded_data(contents: &[u8]) -> Vec<u8> {
+  use std::io::BufRead;
+  let mut encoded_string = String::new();
+  for line in contents.lines() {
+    encoded_string.push_str(&line.unwrap());
+  }
+  b64::decode(encoded_string)
 }

@@ -2,22 +2,12 @@ extern crate time;
 use std::str;
 use std::string::String;
 
-use b64;
+use util;
 use xor;
-
-fn read_encoded_data() -> Vec<u8> {
-  use std::io::BufRead;
-  let contents = include_bytes!("s1c6.txt");
-  let mut encoded_string = String::new();
-  for line in contents.lines() {
-    encoded_string.push_str(&line.unwrap());
-  }
-  b64::decode(encoded_string)
-}
 
 #[test]
 fn challenge() {
-  let encoded_bytes = read_encoded_data();
+  let encoded_bytes = util::read_encoded_data(include_bytes!("s1c6.txt"));
   let start_time = time::precise_time_s();
   let attempt = xor::attempt_rotating_key_decode(&encoded_bytes);
   let duration = time::precise_time_s() - start_time;
