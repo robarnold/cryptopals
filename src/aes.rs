@@ -1,4 +1,5 @@
 use std::ops::BitXor;
+use std::ops::BitXorAssign;
 use xor;
 
 const RCON: [u8; 11] = [
@@ -34,14 +35,6 @@ fn to_four_byte_array(data: &[u8]) -> [u8; 4] {
   [data[0], data[1], data[2], data[3]]
 }
 
-fn key_schedule_core(input: &[u8], rcon_iteration: usize) -> [u8; 4] {
-  let mut output = to_four_byte_array(input);
-  output.rotate_left(1);
-  sbox(&mut output);
-  output[0] = output[0].bitxor(RCON[rcon_iteration]);
-  output
-}
-
 enum Mode {
   Xor,
   Sbox,
@@ -56,17 +49,17 @@ fn generate_four_bytes(
 ) -> [u8; 4] {
   let i = expanded_key.len();
   let source_bytes = &expanded_key[i - 4..i];
-  let mut t: [u8; 4] = match mode {
-    Mode::Xor => to_four_byte_array(source_bytes),
+  let mut t: [u8; 4] = to_four_byte_array(source_bytes);
+  match mode {
+    Mode::Xor => {}
     Mode::Sbox => {
-      let mut bytes = to_four_byte_array(source_bytes);
-      sbox(&mut bytes);
-      bytes
+      sbox(&mut t);
     }
     Mode::Full => {
-      let t = key_schedule_core(source_bytes, *rcon_iteration);
+      t.rotate_left(1);
+      sbox(&mut t);
+      t[0].bitxor_assign(RCON[*rcon_iteration]);
       *rcon_iteration += 1;
-      t
     }
   };
   let xor_source = &expanded_key[i - key_length..i - key_length + 4];
@@ -112,7 +105,31 @@ fn expand_key(key: &[u8]) -> Vec<u8> {
 
 #[test]
 fn expand_key_16() {
-  assert_eq!(176, expand_key(&vec![0; 16]).len());
+  use util::parse_byte_string;
+  assert_eq!(
+    parse_byte_string(
+      "00000000000000000000000000000000626363636263636362636363626363639b9898c9f9fbfbaa9b9898c9f9fbfbaa90973450696ccffaf2f457330b0fac99ee06da7b876a1581759e42b27e91ee2b7f2e2b88f8443e098dda7cbbf34b9290ec614b851425758c99ff09376ab49ba7217517873550620bacaf6b3cc61bf09b0ef903333ba9613897060a04511dfa9fb1d4d8e28a7db9da1d7bb3de4c664941b4ef5bcb3e92e21123e951cf6f8f188e"
+    ),
+    expand_key(&vec![0; 16])
+  );
+  assert_eq!(
+    parse_byte_string(
+      "ffffffffffffffffffffffffffffffffe8e9e9e917161616e8e9e9e917161616adaeae19bab8b80f525151e6454747f0090e2277b3b69a78e1e7cb9ea4a08c6ee16abd3e52dc2746b33becd8179b60b6e5baf3ceb766d488045d385013c658e671d07db3c6b6a93bc2eb916bd12dc98de90d208d2fbb89b6ed5018dd3c7dd15096337366b988fad054d8e20d68a5335d8bf03f233278c5f366a027fe0e0514a3d60a3588e472f07b82d2d7858cd7c326"
+    ),
+    expand_key(&vec![0xff; 16])
+  );
+  assert_eq!(
+    parse_byte_string(
+      "000102030405060708090a0b0c0d0e0fd6aa74fdd2af72fadaa678f1d6ab76feb692cf0b643dbdf1be9bc5006830b3feb6ff744ed2c2c9bf6c590cbf0469bf4147f7f7bc95353e03f96c32bcfd058dfd3caaa3e8a99f9deb50f3af57adf622aa5e390f7df7a69296a7553dc10aa31f6b14f9701ae35fe28c440adf4d4ea9c02647438735a41c65b9e016baf4aebf7ad2549932d1f08557681093ed9cbe2c974e13111d7fe3944a17f307a78b4d2b30c5"
+    ),
+    expand_key(&parse_byte_string("000102030405060708090a0b0c0d0e0f"))
+  );
+  assert_eq!(
+    parse_byte_string(
+      "6920e299a5202a6d656e636869746f2afa8807605fa82d0d3ac64e6553b2214fcf75838d90ddae80aa1be0e5f9a9c1aa180d2f1488d0819422cb6171db62a0dbbaed96ad323d173910f67648cb94d693881b4ab2ba265d8baad02bc36144fd50b34f195d096944d6a3b96f15c2fd9245a7007778ae6933ae0dd05cbbcf2dcefeff8bccf251e2ff5c5c32a3e7931f6d1924b7182e7555e77229674495ba78298cae127cdadb479ba8f220df3d4858f6b1"
+    ),
+    expand_key(&parse_byte_string("6920e299a5202a6d656e636869746f2a"))
+  );
 }
 
 #[test]
@@ -155,12 +172,12 @@ fn gmul(mut a: u8, mut b: u8) -> u8 {
   let mut p = 0;
   for _ in 0..8 {
     if (b & 0x1) != 0 {
-      p = p.bitxor(a);
+      p.bitxor_assign(a);
     }
     let has_high_bit = (a & 0x80) == 0x80;
     a <<= 1;
     if has_high_bit {
-      a = a.bitxor(0x1b);
+      a.bitxor_assign(0x1b);
     }
     b >>= 1;
   }
@@ -231,11 +248,12 @@ pub fn ecb(data: &[u8], key: &[u8]) -> Vec<u8> {
       if round_key.len() != 16 {
         panic!("Invalid key length of {}", round_key.len());
       }
+      println!("on round {}", round);
       match round {
         0 => {
           add_round_key(&mut state, round_key);
         }
-        n if n == last_round => {
+        n if n != last_round => {
           sbox(&mut state);
           shift_rows(&mut state);
           mix_columns(&mut state);
