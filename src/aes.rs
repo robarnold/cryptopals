@@ -142,9 +142,11 @@ fn expand_key(key: &[u8]) -> Vec<u8> {
   }
   // Truncate any extra bytes
   expanded_key.resize(expanded_key_size, 0);
-  if expanded_key.len() != expanded_key_size {
-    panic!("Expanded key is too long: {}", expanded_key.len());
-  }
+  assert!(
+    expanded_key.len() == expanded_key_size,
+    "Expanded key is too long: {}",
+    expanded_key.len(),
+  );
   expanded_key
 }
 
@@ -330,9 +332,13 @@ fn inv_mix_columns(state: &mut [u8]) {
 
 fn transform_chunk_ecb(chunk: &[u8], expanded_key: &[u8], mode: Mode) -> Vec<u8> {
   const STATE_SIZE: usize = 16;
-  if chunk.len() != STATE_SIZE {
-    panic!("Chunk size of {} is invalid; expected {}", chunk.len(), STATE_SIZE);
-  }
+  assert!(
+    chunk.len() == STATE_SIZE,
+    "Chunk size of {} is invalid; expected {}",
+    chunk.len(),
+    STATE_SIZE
+  );
+
   let last_round = expanded_key.chunks(STATE_SIZE).count() - 1;
   let mut state = chunk.to_vec();
   let valid_state_bytes = state.len();
