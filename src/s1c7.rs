@@ -1,12 +1,13 @@
-use std::str;
-
-use aes;
-use util;
-
 #[test]
 fn challenge() {
+  use std::str;
+
+  use aes;
+  use util;
+
   let encoded_bytes = util::read_encoded_data(include_bytes!("s1c7.txt"));
-  let decoded_data = aes::ecb(&encoded_bytes, "YELLOW SUBMARINE".as_bytes());
+  println!("encoded len: {}", encoded_bytes.len());
+  let decoded_data = aes::ecb(&encoded_bytes, "YELLOW SUBMARINE".as_bytes(), aes::Mode::Decrypt);
   let maybe_string = str::from_utf8(&decoded_data);
   match maybe_string {
     Err(e) => {
