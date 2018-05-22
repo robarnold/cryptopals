@@ -16,5 +16,5 @@ pub fn read_encoded_data(contents: &[u8]) -> Vec<u8> {
   for line in contents.lines() {
     encoded_string.push_str(&line.unwrap());
   }
-  b64::decode(encoded_string)
+  b64::decode(&encoded_string)
 }

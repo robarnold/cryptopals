@@ -63,7 +63,7 @@ fn encode_three_letters() {
   assert_eq!(String::from("TWFu"), encode(&[0x4d, 0x61, 0x6e]));
 }
 
-pub fn decode(s: String) -> Vec<u8> {
+pub fn decode(s: &str) -> Vec<u8> {
   let groups = s.len() / 4;
   let mut v = Vec::with_capacity(groups * 3);
   for i in 0..groups {
@@ -106,15 +106,15 @@ pub fn decode(s: String) -> Vec<u8> {
 
 #[test]
 fn decode_one_letter() {
-  assert_eq!(vec![0x4d], decode(String::from("TQ==")));
+  assert_eq!(vec![0x4d], decode("TQ=="));
 }
 
 #[test]
 fn decode_two_letters() {
-  assert_eq!(vec![0x4d, 0x61], decode(String::from("TWE=")));
+  assert_eq!(vec![0x4d, 0x61], decode("TWE="));
 }
 
 #[test]
 fn decode_three_letters() {
-  assert_eq!(vec![0x4d, 0x61, 0x6e], decode(String::from("TWFu")));
+  assert_eq!(vec![0x4d, 0x61, 0x6e], decode("TWFu"));
 }
