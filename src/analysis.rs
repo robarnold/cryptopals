@@ -51,3 +51,18 @@ pub fn sort_keysizes_by_probability(data: &[u8], min_size: usize, max_size: usiz
   });
   sizes.iter().map(|size| size.size).collect()
 }
+
+pub fn likely_aes_ecb_score(data: &[u8]) -> u32 {
+  const CHUNK_SIZE: usize = 16;
+  let chunks: Vec<&[u8]> = data.chunks(CHUNK_SIZE).collect();
+  chunks
+    .iter()
+    .enumerate()
+    .map(|(i, chunk_a)| -> u32 {
+      chunks[(i + 1)..chunks.len()]
+        .iter()
+        .map(|chunk_b| if chunk_a == chunk_b { 1 } else { 0 })
+        .sum()
+    })
+    .sum()
+}
