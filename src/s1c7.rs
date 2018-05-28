@@ -7,10 +7,11 @@ fn challenge() {
 
   let encoded_bytes = util::read_encoded_data(include_bytes!("s1c7.txt"));
   println!("encoded len: {}", encoded_bytes.len());
-  let decoded_data = aes::ecb(
+  let decoded_data = aes::perform(
     &encoded_bytes,
     "YELLOW SUBMARINE".as_bytes(),
-    aes::Mode::Decrypt,
+    aes::Operation::Decrypt,
+    aes::CipherMode::ECB,
   );
   let maybe_string = str::from_utf8(&decoded_data);
   match maybe_string {

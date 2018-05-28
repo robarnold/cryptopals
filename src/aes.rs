@@ -330,7 +330,12 @@ fn inv_mix_columns(state: &mut [u8]) {
   }
 }
 
-fn transform_chunk_ecb(chunk: &[u8], expanded_key: &[u8], mode: Mode) -> Vec<u8> {
+pub enum CipherMode<'a> {
+  ECB,
+  CBC(&'a [u8]),
+}
+
+fn transform_chunk(chunk: &[u8], expanded_key: &[u8], operation: Operation) -> Vec<u8> {
   const STATE_SIZE: usize = 16;
   assert!(
     chunk.len() == STATE_SIZE,
@@ -344,8 +349,8 @@ fn transform_chunk_ecb(chunk: &[u8], expanded_key: &[u8], mode: Mode) -> Vec<u8>
   let valid_state_bytes = state.len();
   // Pad out to 16 bytes to decrypt with
   state.resize(STATE_SIZE, 0);
-  match mode {
-    Mode::Encrypt => {
+  match operation {
+    Operation::Encrypt => {
       for (round, round_key) in expanded_key.chunks(STATE_SIZE).enumerate() {
         match round {
           0 => {
@@ -365,7 +370,7 @@ fn transform_chunk_ecb(chunk: &[u8], expanded_key: &[u8], mode: Mode) -> Vec<u8>
         }
       }
     }
-    Mode::Decrypt => {
+    Operation::Decrypt => {
       for (round, round_key) in expanded_key.chunks(STATE_SIZE).rev().enumerate() {
         match round {
           0 => {
@@ -391,20 +396,77 @@ fn transform_chunk_ecb(chunk: &[u8], expanded_key: &[u8], mode: Mode) -> Vec<u8>
 }
 
 #[derive(Clone, Copy)]
-pub enum Mode {
+pub enum Operation {
   Encrypt,
   Decrypt,
 }
 
-pub fn ecb(data: &[u8], key: &[u8], mode: Mode) -> Vec<u8> {
+trait CipherModeImpl {
+  fn transform(&mut self, chunk: &[u8], transform: &Fn(&[u8]) -> Vec<u8>) -> Vec<u8>;
+}
+
+struct ECBCipherMode {}
+
+struct CBCCipherMode {
+  initialization_vector: Vec<u8>,
+  operation: Operation,
+}
+
+impl CipherModeImpl for ECBCipherMode {
+  fn transform(&mut self, chunk: &[u8], transform: &Fn(&[u8]) -> Vec<u8>) -> Vec<u8> {
+    transform(chunk)
+  }
+}
+
+impl CipherModeImpl for CBCCipherMode {
+  fn transform(&mut self, chunk: &[u8], transform: &Fn(&[u8]) -> Vec<u8>) -> Vec<u8> {
+    match self.operation {
+      Operation::Encrypt => {
+        assert!(
+          chunk.len() == self.initialization_vector.len(),
+          "Plain text's length is {}, IV's length is {}",
+          chunk.len(),
+          self.initialization_vector.len()
+        );
+        xor::buffer_mut(&mut self.initialization_vector, xor::Key::FullBuffer(chunk));
+        self.initialization_vector = transform(&self.initialization_vector);
+        self.initialization_vector.clone()
+      }
+      Operation::Decrypt => {
+        let mut plaintext = transform(chunk);
+        assert!(plaintext.len() == chunk.len());
+        assert!(
+          plaintext.len() == self.initialization_vector.len(),
+          "Plain text's length is {}, IV's length is {}",
+          plaintext.len(),
+          self.initialization_vector.len()
+        );
+        xor::buffer_mut(
+          &mut plaintext,
+          xor::Key::FullBuffer(&self.initialization_vector),
+        );
+        self.initialization_vector = chunk.to_vec();
+        plaintext
+      }
+    }
+  }
+}
+
+pub fn perform(data: &[u8], key: &[u8], operation: Operation, cipher_mode: CipherMode) -> Vec<u8> {
   let mut v = Vec::with_capacity(data.len());
   let expanded_key = expand_key(key);
-  data
-    .chunks(16)
-    .map(|chunk| transform_chunk_ecb(chunk, &expanded_key, mode))
-    .for_each(|chunk| {
-      v.extend(chunk);
-    });
+  let mut cipher_mode_impl: Box<CipherModeImpl> = match cipher_mode {
+    CipherMode::ECB => Box::new(ECBCipherMode {}),
+    CipherMode::CBC(iv) => Box::new(CBCCipherMode {
+      initialization_vector: iv.to_vec(),
+      operation,
+    }),
+  };
+  for chunk in data.chunks(16) {
+    v.extend(cipher_mode_impl.transform(chunk, &|pre_transformed_chunk| {
+      transform_chunk(pre_transformed_chunk, &expanded_key, operation)
+    }));
+  }
   v
 }
 
@@ -412,22 +474,31 @@ pub fn ecb(data: &[u8], key: &[u8], mode: Mode) -> Vec<u8> {
 fn ecb_once_16() {
   let plaintext = &vec![0; 16];
   let key = &vec![0; 16];
-  let ciphertext = ecb(&plaintext, &key, Mode::Encrypt);
-  assert_eq!(plaintext, &ecb(&ciphertext, &key, Mode::Decrypt));
+  let ciphertext = perform(&plaintext, &key, Operation::Encrypt, CipherMode::ECB);
+  assert_eq!(
+    plaintext,
+    &perform(&ciphertext, &key, Operation::Decrypt, CipherMode::ECB)
+  );
 }
 
 #[test]
 fn ecb_once_24() {
   let plaintext = &vec![0; 32];
   let key = &vec![0; 24];
-  let ciphertext = ecb(&plaintext, &key, Mode::Encrypt);
-  assert_eq!(plaintext, &ecb(&ciphertext, &key, Mode::Decrypt));
+  let ciphertext = perform(&plaintext, &key, Operation::Encrypt, CipherMode::ECB);
+  assert_eq!(
+    plaintext,
+    &perform(&ciphertext, &key, Operation::Decrypt, CipherMode::ECB)
+  );
 }
 
 #[test]
 fn ecb_once_32() {
   let plaintext = &vec![0; 32];
   let key = &vec![0; 32];
-  let ciphertext = ecb(&plaintext, &key, Mode::Encrypt);
-  assert_eq!(plaintext, &ecb(&ciphertext, &key, Mode::Decrypt));
+  let ciphertext = perform(&plaintext, &key, Operation::Encrypt, CipherMode::ECB);
+  assert_eq!(
+    plaintext,
+    &perform(&ciphertext, &key, Operation::Decrypt, CipherMode::ECB)
+  );
 }
