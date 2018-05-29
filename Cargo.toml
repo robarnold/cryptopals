@@ -4,5 +4,6 @@ version = "0.1.0"
 authors = ["Rob Arnold"]
 
 [dependencies]
+rand = "0.5"
 threadpool = "1.7.1"
 time = "0.1"

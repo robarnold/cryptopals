@@ -1,3 +1,5 @@
+extern crate rand;
+
 mod aes;
 mod analysis;
 mod b64;
@@ -15,4 +17,5 @@ mod s1c7;
 mod s1c8;
 
 mod s2c10;
+mod s2c11;
 mod s2c9;

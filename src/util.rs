@@ -1,4 +1,5 @@
 use b64;
+use rand;
 
 pub fn parse_byte_string(s: &str) -> Vec<u8> {
   let mut v = Vec::with_capacity(s.len() / 2);
@@ -24,6 +25,15 @@ pub fn read_encoded_data_lines(contents: &[u8]) -> Vec<Vec<u8>> {
   let mut v = Vec::new();
   for line in contents.lines() {
     v.push(b64::decode(&line.unwrap()));
+  }
+  v
+}
+
+pub fn gen_random_bytes(rng: &mut rand::RngCore, length: usize) -> Vec<u8> {
+  use rand::Rng;
+  let mut v = Vec::with_capacity(length);
+  for _ in 0..length {
+    v.push(rng.gen());
   }
   v
 }
