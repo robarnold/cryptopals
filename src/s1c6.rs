@@ -1,12 +1,12 @@
-extern crate time;
-use std::str;
-use std::string::String;
-
-use util;
-use xor;
-
 #[test]
 fn challenge() {
+  extern crate time;
+  use std::str;
+  use std::string::String;
+
+  use util;
+  use xor;
+
   let encoded_bytes = util::read_encoded_data(include_bytes!("s1c6.txt"));
   let start_time = time::precise_time_s();
   let attempt = xor::attempt_rotating_key_decode(&encoded_bytes);
