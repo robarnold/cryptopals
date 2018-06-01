@@ -1,47 +1,18 @@
 extern crate threadpool;
+use std::iter::Iterator;
 use std::ops::BitXor;
 
 use analysis;
 
-fn buffer_full_key(data: &[u8], key: &[u8]) -> Vec<u8> {
-  let mut v = Vec::with_capacity(data.len());
-  for i in 0..data.len() {
-    v.push(data[i].bitxor(key[i]));
-  }
-  v
-}
-
-fn buffer_full_key_mut(data: &mut [u8], key: &[u8]) {
-  for i in 0..data.len() {
-    data[i] = data[i].bitxor(key[i]);
+fn apply_xor<'a, I: Iterator<Item = &'a u8>>(output: &mut Vec<u8>, input: &[u8], mut key: I) {
+  for i in 0..input.len() {
+    output.push(input[i].bitxor(key.next().unwrap()));
   }
 }
 
-fn buffer_single_char(data: &[u8], key: u8) -> Vec<u8> {
-  let mut v = Vec::with_capacity(data.len());
+fn apply_xor_mut<'a, I: Iterator<Item = &'a u8>>(data: &mut [u8], mut key: I) {
   for i in 0..data.len() {
-    v.push(data[i].bitxor(key));
-  }
-  v
-}
-
-fn buffer_single_char_mut(data: &mut [u8], key: u8) {
-  for i in 0..data.len() {
-    data[i] = data[i].bitxor(key);
-  }
-}
-
-fn buffer_repeating(data: &[u8], key: &[u8]) -> Vec<u8> {
-  let mut v = Vec::with_capacity(data.len());
-  for i in 0..data.len() {
-    v.push(data[i].bitxor(key[i % key.len()]));
-  }
-  v
-}
-
-fn buffer_repeating_mut(data: &mut [u8], key: &[u8]) {
-  for i in 0..data.len() {
-    data[i] = data[i].bitxor(key[i % key.len()]);
+    data[i] = data[i].bitxor(key.next().unwrap());
   }
 }
 
@@ -52,18 +23,20 @@ pub enum Key<'a> {
 }
 
 pub fn buffer(data: &[u8], key: Key) -> Vec<u8> {
+  let mut v = Vec::with_capacity(data.len());
   match key {
-    Key::FullBuffer(key) => buffer_full_key(data, key),
-    Key::SingleByte(key) => buffer_single_char(data, key),
-    Key::RotatingKey(key) => buffer_repeating(data, key),
+    Key::FullBuffer(buffer) => apply_xor(&mut v, data, buffer.iter()),
+    Key::SingleByte(byte) => apply_xor(&mut v, data, [byte].iter().cycle()),
+    Key::RotatingKey(buffer) => apply_xor(&mut v, data, buffer.iter().cycle()),
   }
+  v
 }
 
 pub fn buffer_mut(data: &mut [u8], key: Key) {
   match key {
-    Key::FullBuffer(key) => buffer_full_key_mut(data, key),
-    Key::SingleByte(key) => buffer_single_char_mut(data, key),
-    Key::RotatingKey(key) => buffer_repeating_mut(data, key),
+    Key::FullBuffer(buffer) => apply_xor_mut(data, buffer.iter()),
+    Key::SingleByte(byte) => apply_xor_mut(data, [byte].iter().cycle()),
+    Key::RotatingKey(buffer) => apply_xor_mut(data, buffer.iter().cycle()),
   }
 }
 
