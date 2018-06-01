@@ -3,7 +3,7 @@ use std::ops::BitXor;
 
 use analysis;
 
-pub fn buffer_full_key(data: &[u8], key: &[u8]) -> Vec<u8> {
+fn buffer_full_key(data: &[u8], key: &[u8]) -> Vec<u8> {
   let mut v = Vec::with_capacity(data.len());
   for i in 0..data.len() {
     v.push(data[i].bitxor(key[i]));
@@ -17,7 +17,7 @@ fn buffer_full_key_mut(data: &mut [u8], key: &[u8]) {
   }
 }
 
-pub fn buffer_single_char(data: &[u8], key: u8) -> Vec<u8> {
+fn buffer_single_char(data: &[u8], key: u8) -> Vec<u8> {
   let mut v = Vec::with_capacity(data.len());
   for i in 0..data.len() {
     v.push(data[i].bitxor(key));
@@ -31,7 +31,7 @@ fn buffer_single_char_mut(data: &mut [u8], key: u8) {
   }
 }
 
-pub fn buffer_repeating(data: &[u8], key: &[u8]) -> Vec<u8> {
+fn buffer_repeating(data: &[u8], key: &[u8]) -> Vec<u8> {
   let mut v = Vec::with_capacity(data.len());
   for i in 0..data.len() {
     v.push(data[i].bitxor(key[i % key.len()]));
@@ -119,8 +119,8 @@ fn attempt_rotating_key_decode_at_size(data: &[u8], size: usize) -> XorRotatingK
 }
 
 pub fn attempt_rotating_key_decode(data: &[u8]) -> Option<XorRotatingKeyDecodeAttempt> {
-  use std::sync::Arc;
   use std::sync::mpsc::channel;
+  use std::sync::Arc;
   let sizes = analysis::sort_keysizes_by_probability(data, 2, 40);
   println!("Key sizes: {:?}", sizes);
   let pool = threadpool::ThreadPool::default();

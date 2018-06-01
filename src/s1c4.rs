@@ -1,10 +1,10 @@
-use std::string::String;
-
-use util;
-use xor;
-
 #[test]
 fn challenge() {
+  use std::string::String;
+
+  use util;
+  use xor;
+
   use std::io::BufRead;
   let contents = include_bytes!("s1c4.txt");
   let mut best_attempt = None;
@@ -12,8 +12,10 @@ fn challenge() {
   for line in contents.lines() {
     let encoded_data = &util::parse_byte_string(&line.unwrap());
     let current_attempt = xor::attempt_single_byte_decode(encoded_data);
-    let decode_result =
-      String::from_utf8(xor::buffer_single_char(&encoded_data, current_attempt.key));
+    let decode_result = String::from_utf8(xor::buffer(
+      &encoded_data,
+      xor::Key::SingleByte(current_attempt.key),
+    ));
     if decode_result.is_err() {
       continue;
     }
