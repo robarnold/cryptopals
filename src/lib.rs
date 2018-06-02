@@ -1,11 +1,11 @@
 extern crate rand;
 
-mod aes;
-mod analysis;
-mod b64;
-mod pkcs7;
-mod util;
-mod xor;
+pub mod aes;
+pub mod analysis;
+pub mod b64;
+pub mod pkcs7;
+pub mod util;
+pub mod xor;
 
 mod s1c1;
 mod s1c2;
