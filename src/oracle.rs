@@ -49,3 +49,34 @@ impl<R: Rng> Oracle for Random<R> {
     }
   }
 }
+
+pub struct AES128Append {
+  key: Vec<u8>,
+  suffix: Vec<u8>,
+}
+
+impl AES128Append {
+  pub fn new(suffix: Vec<u8>) -> AES128Append {
+    let mut rng = thread_rng();
+    let key = util::gen_random_bytes(&mut rng, 16);
+    AES128Append { key, suffix }
+  }
+}
+
+impl Oracle for AES128Append {
+  fn encode(&mut self, input: &[u8]) -> OracleResult {
+    let mut full_input = input.to_vec();
+    full_input.extend(&self.suffix);
+    let data = pkcs7::pad(&full_input, 16);
+    let encoded_data = aes::perform(
+      &data,
+      &self.key,
+      aes::Operation::Encrypt,
+      aes::CipherMode::ECB,
+    );
+    OracleResult {
+      data: encoded_data,
+      is_ecb: true,
+    }
+  }
+}
