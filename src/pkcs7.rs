@@ -2,7 +2,6 @@ pub fn pad(data: &[u8], block_size: usize) -> Vec<u8> {
   assert!(block_size > 0);
   assert!(block_size < 256);
   let extra_bytes = block_size - (data.len() % block_size);
-  println!("Extra bytes {}, len: {}", extra_bytes, data.len());
   let final_length = data.len() + extra_bytes;
   let mut v = Vec::with_capacity(final_length);
   v.extend_from_slice(data);
