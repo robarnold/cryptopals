@@ -3,6 +3,7 @@ extern crate rand;
 pub mod aes;
 pub mod analysis;
 pub mod b64;
+pub mod oracle;
 pub mod pkcs7;
 pub mod util;
 pub mod xor;
