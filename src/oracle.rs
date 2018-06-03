@@ -12,6 +12,27 @@ pub trait Oracle {
   fn encode(&mut self, input: &[u8]) -> OracleResult;
 }
 
+pub fn determine_block_size(o: &mut Oracle) -> usize {
+  let mut buffer = vec![0; 1];
+  let initial_length = o.encode(&buffer).data.len();
+  for _ in 1..256 {
+    buffer.push(0);
+    let output_length = o.encode(&buffer).data.len();
+    if output_length != initial_length {
+      return output_length - initial_length;
+    }
+  }
+  panic!("Unable to find block size");
+}
+
+pub fn is_using_ecb(o: &mut Oracle) -> bool {
+  use analysis;
+  let block_size = determine_block_size(o);
+  let buffer = vec![0; block_size * 3];
+  let encoded_buffer = o.encode(&buffer).data;
+  analysis::likely_aes_ecb_score(&encoded_buffer) > 0
+}
+
 pub struct Random<R: Rng> {
   rng: R,
 }

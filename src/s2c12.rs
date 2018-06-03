@@ -1,29 +1,54 @@
-use oracle::Oracle;
-
-#[allow(dead_code)]
-fn determine_block_size(o: &mut Oracle) -> usize {
-  let mut buffer = vec![0; 2];
-  for i in 1..256 {
-    let output = o.encode(&buffer);
-    let mut chunks = output.data.chunks(i);
-    let first = chunks.next().unwrap();
-    let second = chunks.next().unwrap();
-    if first == second {
-      return i;
-    }
-    buffer.push(0);
-    buffer.push(0);
-  }
-  panic!("Unable to find block size");
-}
-
 #[test]
 fn challenge() {
   use b64;
   use oracle;
-  let mut o = oracle::AES128Append::new(
-    b64::decode("Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK")
-  );
-  let block_size = determine_block_size(&mut o);
+  use oracle::Oracle;
+
+  let secret_plaintext = 
+    b64::decode("Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK");
+  let secret_plaintext_len = secret_plaintext.len();
+  let mut o = oracle::AES128Append::new(secret_plaintext);
+  let block_size = oracle::determine_block_size(&mut o);
   assert_eq!(16, block_size);
+  assert_eq!(true, oracle::is_using_ecb(&mut o));
+  let mut known_bytes = Vec::new();
+  while known_bytes.len() < secret_plaintext_len {
+    let filler_bytes_required = block_size - 1 - (known_bytes.len() % block_size);
+    println!(
+      "Known string bytes: {}, filler: {}",
+      known_bytes.len(),
+      filler_bytes_required
+    );
+    assert!(filler_bytes_required < block_size);
+    let mut test_input = vec![0; filler_bytes_required];
+    let expected_chunk_index = known_bytes.len() / block_size;
+    // Get the encoded string at an offset where only the last byte in a block is unknown
+    let encoded_answer = o.encode(&test_input).data;
+
+    // Add the bytes we to do know about
+    test_input.extend_from_slice(&known_bytes);
+    let last_index = test_input.len();
+    test_input.push(0);
+    let mut found_byte = false;
+    let answer_block = encoded_answer
+      .chunks(block_size)
+      .nth(expected_chunk_index)
+      .unwrap();
+    for i in 0..u8::max_value() {
+      test_input[last_index] = i;
+      let test_encoded = o.encode(&test_input).data;
+      if test_encoded
+        .chunks(block_size)
+        .nth(expected_chunk_index)
+        .unwrap() == answer_block
+      {
+        known_bytes.push(i);
+        found_byte = true;
+        break;
+      }
+    }
+    assert!(found_byte);
+  }
+  let string = String::from_utf8(known_bytes).unwrap();
+  assert_eq!("Rollin\' in my 5.0\nWith my rag-top down so my hair can blow\nThe girlies on standby waving just to say hi\nDid you stop? No, I just drove by\n", string);
 }
