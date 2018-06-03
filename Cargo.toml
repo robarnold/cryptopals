@@ -5,5 +5,6 @@ authors = ["Rob Arnold"]
 
 [dependencies]
 rand = "0.5"
+rayon = "1.0"
 threadpool = "1.7.1"
 time = "0.1"

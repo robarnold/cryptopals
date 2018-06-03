@@ -1,4 +1,5 @@
 extern crate rand;
+extern crate rayon;
 
 pub mod aes;
 pub mod analysis;
