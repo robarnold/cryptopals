@@ -402,7 +402,12 @@ pub enum Operation {
 }
 
 trait CipherModeImpl {
-  fn transform(&mut self, chunk: &[u8], transform: &Fn(&[u8]) -> Vec<u8>) -> Vec<u8>;
+  fn transform_chunks(
+    &mut self,
+    data: &[u8],
+    chunk_size: usize,
+    transform: &(Fn(&[u8]) -> Vec<u8> + Sync),
+  ) -> Vec<u8>;
 }
 
 struct ECBCipherMode {}
@@ -412,13 +417,7 @@ struct CBCCipherMode {
   operation: Operation,
 }
 
-impl CipherModeImpl for ECBCipherMode {
-  fn transform(&mut self, chunk: &[u8], transform: &Fn(&[u8]) -> Vec<u8>) -> Vec<u8> {
-    transform(chunk)
-  }
-}
-
-impl CipherModeImpl for CBCCipherMode {
+impl CBCCipherMode {
   fn transform(&mut self, chunk: &[u8], transform: &Fn(&[u8]) -> Vec<u8>) -> Vec<u8> {
     match self.operation {
       Operation::Encrypt => {
@@ -452,8 +451,36 @@ impl CipherModeImpl for CBCCipherMode {
   }
 }
 
+impl CipherModeImpl for ECBCipherMode {
+  fn transform_chunks(
+    &mut self,
+    data: &[u8],
+    chunk_size: usize,
+    transform: &(Fn(&[u8]) -> Vec<u8> + Sync),
+  ) -> Vec<u8> {
+    use rayon::prelude::*;
+    let mut v = Vec::with_capacity(data.len());
+    v.par_extend(data.par_chunks(chunk_size).map(transform).flatten());
+    v
+  }
+}
+
+impl CipherModeImpl for CBCCipherMode {
+  fn transform_chunks(
+    &mut self,
+    data: &[u8],
+    chunk_size: usize,
+    transform: &(Fn(&[u8]) -> Vec<u8> + Sync),
+  ) -> Vec<u8> {
+    let mut v = Vec::with_capacity(data.len());
+    for chunk in data.chunks(chunk_size) {
+      v.extend(self.transform(chunk, transform));
+    }
+    v
+  }
+}
+
 pub fn perform(data: &[u8], key: &[u8], operation: Operation, cipher_mode: CipherMode) -> Vec<u8> {
-  let mut v = Vec::with_capacity(data.len());
   let expanded_key = expand_key(key);
   let mut cipher_mode_impl: Box<CipherModeImpl> = match cipher_mode {
     CipherMode::ECB => Box::new(ECBCipherMode {}),
@@ -462,12 +489,9 @@ pub fn perform(data: &[u8], key: &[u8], operation: Operation, cipher_mode: Ciphe
       operation,
     }),
   };
-  for chunk in data.chunks(16) {
-    v.extend(cipher_mode_impl.transform(chunk, &|pre_transformed_chunk| {
-      transform_chunk(pre_transformed_chunk, &expanded_key, operation)
-    }));
-  }
-  v
+  cipher_mode_impl.transform_chunks(data, 16, &|pre_transformed_chunk| {
+    transform_chunk(pre_transformed_chunk, &expanded_key, operation)
+  })
 }
 
 #[test]
