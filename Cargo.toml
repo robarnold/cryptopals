@@ -8,3 +8,6 @@ rand = "0.5"
 rayon = "1.0"
 threadpool = "1.7.1"
 time = "0.1"
+
+[dev-dependencies]
+quickcheck = "0.6"

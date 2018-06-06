@@ -1,3 +1,7 @@
+#[macro_use]
+#[cfg(test)]
+extern crate quickcheck;
+
 extern crate rand;
 extern crate rayon;
 
