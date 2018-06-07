@@ -106,22 +106,22 @@ impl Oracle for AES128 {
     }
   }
 }
-pub struct AES128Append {
-  aes128: AES128,
+
+pub struct ConstantAppend<O: Oracle> {
+  oracle: O,
   suffix: Vec<u8>,
 }
 
-impl AES128Append {
-  pub fn new(suffix: Vec<u8>) -> AES128Append {
-    let aes128 = AES128::new();
-    AES128Append { aes128, suffix }
+impl<O: Oracle + Sized> ConstantAppend<O> {
+  pub fn new(oracle: O, suffix: Vec<u8>) -> ConstantAppend<O> {
+    ConstantAppend { oracle, suffix }
   }
 }
 
-impl Oracle for AES128Append {
+impl<O: Oracle> Oracle for ConstantAppend<O> {
   fn encode(&self, input: &[u8]) -> OracleResult {
     let mut full_input = input.to_vec();
     full_input.extend(&self.suffix);
-    self.aes128.encode(&full_input)
+    self.oracle.encode(&full_input)
   }
 }
