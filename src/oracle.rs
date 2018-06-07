@@ -12,7 +12,7 @@ pub trait Oracle {
   fn encode(&self, input: &[u8]) -> OracleResult;
 }
 
-pub fn determine_block_size(o: &mut Oracle) -> usize {
+pub fn determine_block_size(o: &Oracle) -> usize {
   let mut buffer = vec![0; 1];
   let initial_length = o.encode(&buffer).data.len();
   for _ in 1..256 {
@@ -25,7 +25,7 @@ pub fn determine_block_size(o: &mut Oracle) -> usize {
   panic!("Unable to find block size");
 }
 
-pub fn is_using_ecb(o: &mut Oracle) -> bool {
+pub fn is_using_ecb(o: &Oracle) -> bool {
   use analysis;
   let block_size = determine_block_size(o);
   let buffer = vec![0; block_size * 3];
@@ -69,24 +69,31 @@ impl Oracle for Random {
   }
 }
 
-pub struct AES128Append {
+pub struct AES128 {
   key: Vec<u8>,
-  suffix: Vec<u8>,
 }
 
-impl AES128Append {
-  pub fn new(suffix: Vec<u8>) -> AES128Append {
+impl AES128 {
+  pub fn new() -> AES128 {
     let mut rng = thread_rng();
     let key = util::gen_random_bytes(&mut rng, 16);
-    AES128Append { key, suffix }
+    AES128 { key }
+  }
+  pub fn decode(&self, ciphertext: &[u8]) -> Vec<u8> {
+    let mut decoded_data = aes::perform(
+      &ciphertext,
+      &self.key,
+      aes::Operation::Decrypt,
+      aes::CipherMode::ECB,
+    );
+    pkcs7::unpad_mut(&mut decoded_data, 16);
+    decoded_data
   }
 }
 
-impl Oracle for AES128Append {
+impl Oracle for AES128 {
   fn encode(&self, input: &[u8]) -> OracleResult {
-    let mut full_input = input.to_vec();
-    full_input.extend(&self.suffix);
-    let data = pkcs7::pad(&full_input, 16);
+    let data = pkcs7::pad(&input, 16);
     let encoded_data = aes::perform(
       &data,
       &self.key,
@@ -97,5 +104,24 @@ impl Oracle for AES128Append {
       data: encoded_data,
       is_ecb: true,
     }
+  }
+}
+pub struct AES128Append {
+  aes128: AES128,
+  suffix: Vec<u8>,
+}
+
+impl AES128Append {
+  pub fn new(suffix: Vec<u8>) -> AES128Append {
+    let aes128 = AES128::new();
+    AES128Append { aes128, suffix }
+  }
+}
+
+impl Oracle for AES128Append {
+  fn encode(&self, input: &[u8]) -> OracleResult {
+    let mut full_input = input.to_vec();
+    full_input.extend(&self.suffix);
+    self.aes128.encode(&full_input)
   }
 }
