@@ -38,6 +38,11 @@ pub fn unpad_mut(data: &mut Vec<u8>, block_size: usize) {
     block_size
   );
   let new_length = data.len() - bytes_to_trim;
+  assert!(
+    data[new_length..data.len()]
+      .iter()
+      .all(|&byte| byte as usize == bytes_to_trim)
+  );
   data.resize(new_length, 0);
 }
 
