@@ -1,5 +1,6 @@
 use std::ops::BitXor;
 use std::ops::BitXorAssign;
+use util;
 use xor;
 
 const RCON: [u8; 11] = [
@@ -197,7 +198,7 @@ fn add_round_key(state: &mut [u8], key: &[u8]) {
 const ROW_SHIFTS: [usize; 16] = [0, 5, 10, 15, 4, 9, 14, 3, 8, 13, 2, 7, 12, 1, 6, 11];
 
 fn shift_rows(state: &mut [u8]) {
-  let copy = state.to_vec();
+  let copy = util::convert_to_fixed_array(state);
   for (index, e) in state.iter_mut().enumerate() {
     *e = copy[ROW_SHIFTS[index]];
   }
@@ -217,7 +218,7 @@ fn test_shift_rows() {
 const INV_ROW_SHIFTS: [usize; 16] = [0, 13, 10, 7, 4, 1, 14, 11, 8, 5, 2, 15, 12, 9, 6, 3];
 
 fn inv_shift_rows(state: &mut [u8]) {
-  let copy = state.to_vec();
+  let copy = util::convert_to_fixed_array(state);
   for (index, e) in state.iter_mut().enumerate() {
     *e = copy[INV_ROW_SHIFTS[index]];
   }
@@ -336,7 +337,7 @@ pub enum CipherMode {
   CBC([u8; 16]),
 }
 
-fn transform_chunk(chunk: &[u8], expanded_key: &[u8], operation: Operation) -> Vec<u8> {
+fn transform_chunk(chunk: &[u8], expanded_key: &[u8], operation: Operation) -> [u8; 16] {
   const STATE_SIZE: usize = 16;
   assert!(
     chunk.len() == STATE_SIZE,
@@ -346,10 +347,7 @@ fn transform_chunk(chunk: &[u8], expanded_key: &[u8], operation: Operation) -> V
   );
 
   let last_round = expanded_key.chunks(STATE_SIZE).count() - 1;
-  let mut state = chunk.to_vec();
-  let valid_state_bytes = state.len();
-  // Pad out to 16 bytes to decrypt with
-  state.resize(STATE_SIZE, 0);
+  let mut state = util::convert_to_fixed_array(chunk);
   match operation {
     Operation::Encrypt => {
       for (round, round_key) in expanded_key.chunks(STATE_SIZE).enumerate() {
@@ -392,7 +390,6 @@ fn transform_chunk(chunk: &[u8], expanded_key: &[u8], operation: Operation) -> V
       }
     }
   };
-  state.resize(valid_state_bytes, 0);
   state
 }
 
@@ -406,46 +403,32 @@ trait CipherModeImpl {
   fn transform_chunks(
     &mut self,
     data: &[u8],
-    chunk_size: usize,
-    transform: &(Fn(&[u8]) -> Vec<u8> + Sync),
+    transform: &(Fn(&[u8; 16]) -> [u8; 16] + Sync),
   ) -> Vec<u8>;
 }
 
 struct ECBCipherMode {}
 
 struct CBCCipherMode {
-  initialization_vector: Vec<u8>,
+  initialization_vector: [u8; 16],
   operation: Operation,
 }
 
 impl CBCCipherMode {
-  fn transform(&mut self, chunk: &[u8], transform: &Fn(&[u8]) -> Vec<u8>) -> Vec<u8> {
+  fn transform(&mut self, chunk: &[u8; 16], transform: &Fn(&[u8; 16]) -> [u8; 16]) -> [u8; 16] {
     match self.operation {
       Operation::Encrypt => {
-        assert!(
-          chunk.len() == self.initialization_vector.len(),
-          "Plain text's length is {}, IV's length is {}",
-          chunk.len(),
-          self.initialization_vector.len()
-        );
         xor::buffer_mut(&mut self.initialization_vector, xor::Key::FullBuffer(chunk));
         self.initialization_vector = transform(&self.initialization_vector);
-        self.initialization_vector.clone()
+        util::convert_to_fixed_array(&self.initialization_vector)
       }
       Operation::Decrypt => {
         let mut plaintext = transform(chunk);
-        assert!(plaintext.len() == chunk.len());
-        assert!(
-          plaintext.len() == self.initialization_vector.len(),
-          "Plain text's length is {}, IV's length is {}",
-          plaintext.len(),
-          self.initialization_vector.len()
-        );
         xor::buffer_mut(
           &mut plaintext,
           xor::Key::FullBuffer(&self.initialization_vector),
         );
-        self.initialization_vector = chunk.to_vec();
+        self.initialization_vector = util::convert_to_fixed_array(chunk);
         plaintext
       }
     }
@@ -456,12 +439,12 @@ impl CipherModeImpl for ECBCipherMode {
   fn transform_chunks(
     &mut self,
     data: &[u8],
-    chunk_size: usize,
-    transform: &(Fn(&[u8]) -> Vec<u8> + Sync),
+    transform: &(Fn(&[u8; 16]) -> [u8; 16] + Sync),
   ) -> Vec<u8> {
-    use rayon::prelude::*;
     let mut v = Vec::with_capacity(data.len());
-    v.par_extend(data.par_chunks(chunk_size).map(transform).flatten());
+    for chunk in data.chunks(16) {
+      v.extend(&transform(&util::convert_to_fixed_array(chunk)));
+    }
     v
   }
 }
@@ -470,12 +453,15 @@ impl CipherModeImpl for CBCCipherMode {
   fn transform_chunks(
     &mut self,
     data: &[u8],
-    chunk_size: usize,
-    transform: &(Fn(&[u8]) -> Vec<u8> + Sync),
+    transform: &(Fn(&[u8; 16]) -> [u8; 16] + Sync),
   ) -> Vec<u8> {
     let mut v = Vec::with_capacity(data.len());
-    for chunk in data.chunks(chunk_size) {
-      v.extend(self.transform(chunk, transform));
+    for chunk in data.chunks(16) {
+      v.extend(
+        self
+          .transform(&util::convert_to_fixed_array(chunk), transform)
+          .iter(),
+      );
     }
     v
   }
@@ -486,11 +472,11 @@ pub fn perform(data: &[u8], key: &[u8], operation: Operation, cipher_mode: Ciphe
   let mut cipher_mode_impl: Box<CipherModeImpl> = match cipher_mode {
     CipherMode::ECB => Box::new(ECBCipherMode {}),
     CipherMode::CBC(iv) => Box::new(CBCCipherMode {
-      initialization_vector: iv.to_vec(),
+      initialization_vector: iv,
       operation,
     }),
   };
-  cipher_mode_impl.transform_chunks(data, 16, &|pre_transformed_chunk| {
+  cipher_mode_impl.transform_chunks(data, &|pre_transformed_chunk| {
     transform_chunk(pre_transformed_chunk, &expanded_key, operation)
   })
 }
