@@ -59,12 +59,12 @@ impl Oracle for Random {
   fn encode(&self, input: &[u8]) -> OracleResult {
     let mut rng = thread_rng();
     let key = util::gen_random_bytes(&mut rng, 16);
-    let iv = util::gen_random_bytes(&mut rng, 16);
     let is_ecb: bool = rng.gen();
     let cipher_mode = if is_ecb {
       aes::CipherMode::ECB
     } else {
-      aes::CipherMode::CBC(&iv)
+      let iv = util::gen_random_bytes(&mut rng, 16);
+      aes::CipherMode::CBC(util::convert_to_fixed_array(&iv))
     };
     let mut noisied_data = Vec::new();
     for _ in 0..rng.gen_range(5, 10) {
@@ -85,20 +85,32 @@ impl Oracle for Random {
 
 pub struct AES128 {
   key: Vec<u8>,
+  cipher_mode: aes::CipherMode,
 }
 
 impl AES128 {
   pub fn new() -> AES128 {
     let mut rng = thread_rng();
     let key = util::gen_random_bytes(&mut rng, 16);
-    AES128 { key }
+    AES128 {
+      key,
+      cipher_mode: aes::CipherMode::ECB,
+    }
+  }
+  pub fn with_cbc(iv: Vec<u8>) -> AES128 {
+    let mut rng = thread_rng();
+    let key = util::gen_random_bytes(&mut rng, 16);
+    AES128 {
+      key,
+      cipher_mode: aes::CipherMode::CBC(util::convert_to_fixed_array(&iv)),
+    }
   }
   pub fn decode(&self, ciphertext: &[u8]) -> Vec<u8> {
     let mut decoded_data = aes::perform(
       &ciphertext,
       &self.key,
       aes::Operation::Decrypt,
-      aes::CipherMode::ECB,
+      self.cipher_mode.clone(),
     );
     pkcs7::unpad_mut(&mut decoded_data, 16);
     decoded_data

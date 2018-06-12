@@ -9,7 +9,7 @@ fn challenge() {
     &data,
     key,
     aes::Operation::Decrypt,
-    aes::CipherMode::CBC(&vec![0; 16]),
+    aes::CipherMode::CBC([0; 16]),
   );
   let maybe_string = str::from_utf8(&decoded_data);
   match maybe_string {
@@ -30,13 +30,12 @@ fn encrypt() {
   use aes;
   use util;
   let reference = include_bytes!("s1c7_decoded.txt");
-  let iv = vec![0; 16];
   let key = "YELLOW SUBMARINE".as_bytes();
   let encoded_data = aes::perform(
     reference,
     key,
     aes::Operation::Encrypt,
-    aes::CipherMode::CBC(&iv),
+    aes::CipherMode::CBC([0; 16]),
   );
   assert_eq!(
     encoded_data,

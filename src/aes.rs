@@ -330,9 +330,10 @@ fn inv_mix_columns(state: &mut [u8]) {
   }
 }
 
-pub enum CipherMode<'a> {
+#[derive(Clone)]
+pub enum CipherMode {
   ECB,
-  CBC(&'a [u8]),
+  CBC([u8; 16]),
 }
 
 fn transform_chunk(chunk: &[u8], expanded_key: &[u8], operation: Operation) -> Vec<u8> {

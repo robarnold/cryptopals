@@ -29,6 +29,13 @@ pub fn read_encoded_data_lines(contents: &[u8]) -> Vec<Vec<u8>> {
   v
 }
 
+pub fn convert_to_fixed_array(bytes: &[u8]) -> [u8; 16] {
+  assert!(bytes.len() == 16);
+  let mut arr = [0; 16];
+  arr.copy_from_slice(&bytes);
+  arr
+}
+
 pub fn gen_random_bytes(rng: &mut rand::RngCore, length: usize) -> Vec<u8> {
   use rand::Rng;
   let mut v = Vec::with_capacity(length);
