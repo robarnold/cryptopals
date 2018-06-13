@@ -79,6 +79,7 @@ fn profile_for(s: &str) -> String {
 #[test]
 fn challenge() {
   use oracle;
+  use oracle::DecodableOracle;
   use oracle::Oracle;
   use std::str;
 

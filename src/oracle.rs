@@ -12,6 +12,10 @@ pub trait Oracle {
   fn encode(&self, input: &[u8]) -> OracleResult;
 }
 
+pub trait DecodableOracle {
+  fn decode(&self, ciphertext: &[u8]) -> Vec<u8>;
+}
+
 pub fn determine_block_size_and_input_offset(o: &Oracle) -> (usize, usize) {
   let mut buffer = vec![0; 0];
   let initial_length = o.encode(&buffer).data.len();
@@ -105,16 +109,6 @@ impl AES128 {
       cipher_mode: aes::CipherMode::CBC(util::convert_to_fixed_array(&iv)),
     }
   }
-  pub fn decode(&self, ciphertext: &[u8]) -> Vec<u8> {
-    let mut decoded_data = aes::perform(
-      &ciphertext,
-      &self.key,
-      aes::Operation::Decrypt,
-      self.cipher_mode.clone(),
-    );
-    pkcs7::unpad_mut(&mut decoded_data, 16);
-    decoded_data
-  }
 }
 
 impl Oracle for AES128 {
@@ -130,6 +124,19 @@ impl Oracle for AES128 {
       data: encoded_data,
       is_ecb: true,
     }
+  }
+}
+
+impl DecodableOracle for AES128 {
+  fn decode(&self, ciphertext: &[u8]) -> Vec<u8> {
+    let mut decoded_data = aes::perform(
+      &ciphertext,
+      &self.key,
+      aes::Operation::Decrypt,
+      self.cipher_mode.clone(),
+    );
+    pkcs7::unpad_mut(&mut decoded_data, 16);
+    decoded_data
   }
 }
 
@@ -149,6 +156,12 @@ impl<O: Oracle> Oracle for ConstantAppend<O> {
     let mut full_input = input.to_vec();
     full_input.extend(&self.suffix);
     self.oracle.encode(&full_input)
+  }
+}
+
+impl<O: Oracle + DecodableOracle> DecodableOracle for ConstantAppend<O> {
+  fn decode(&self, ciphertext: &[u8]) -> Vec<u8> {
+    self.oracle.decode(ciphertext)
   }
 }
 
@@ -176,5 +189,11 @@ impl<O: Oracle> Oracle for ConstantPrepend<O> {
     let mut full_input = self.prefix.clone();
     full_input.extend(input);
     self.oracle.encode(&full_input)
+  }
+}
+
+impl<O: Oracle + DecodableOracle> DecodableOracle for ConstantPrepend<O> {
+  fn decode(&self, ciphertext: &[u8]) -> Vec<u8> {
+    self.oracle.decode(ciphertext)
   }
 }
