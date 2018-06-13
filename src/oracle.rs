@@ -118,7 +118,7 @@ impl Oracle for AES128 {
       &data,
       &self.key,
       aes::Operation::Encrypt,
-      aes::CipherMode::ECB,
+      self.cipher_mode.clone(),
     );
     OracleResult {
       data: encoded_data,
