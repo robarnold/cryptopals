@@ -1,6 +1,7 @@
 use aes;
 use pkcs7;
 use rand::prelude::*;
+use std::collections::BTreeSet;
 use util;
 
 pub struct OracleResult {
@@ -193,6 +194,41 @@ impl<O: Oracle> Oracle for ConstantPrepend<O> {
 }
 
 impl<O: Oracle + DecodableOracle> DecodableOracle for ConstantPrepend<O> {
+  fn decode(&self, ciphertext: &[u8]) -> Vec<u8> {
+    self.oracle.decode(ciphertext)
+  }
+}
+
+pub struct QuoteBytes<O: Oracle> {
+  oracle: O,
+  bytes: BTreeSet<u8>,
+}
+
+impl<O: Oracle + Sized> QuoteBytes<O> {
+  pub fn new(oracle: O, bytes: &[u8]) -> Self {
+    let mut set = BTreeSet::new();
+    for b in bytes {
+      set.insert(*b);
+    }
+    QuoteBytes { oracle, bytes: set }
+  }
+}
+
+impl<O: Oracle> Oracle for QuoteBytes<O> {
+  fn encode(&self, input: &[u8]) -> OracleResult {
+    let mut full_input = Vec::new();
+    for b in input {
+      if self.bytes.contains(b) {
+        full_input.extend(format!("%{:x}", b).as_bytes());
+      } else {
+        full_input.push(*b);
+      }
+    }
+    self.oracle.encode(&full_input)
+  }
+}
+
+impl<O: Oracle + DecodableOracle> DecodableOracle for QuoteBytes<O> {
   fn decode(&self, ciphertext: &[u8]) -> Vec<u8> {
     self.oracle.decode(ciphertext)
   }
